@@ -64,9 +64,9 @@ def download():
         if not files:
             raise RuntimeError("no file")
         path = max(files, key=os.path.getsize)
-    except Exception:
+    except Exception as e:
         shutil.rmtree(tmp, ignore_errors=True)
-        return jsonify(error="Download failed (private, too long, or blocked by the platform)."), 422
+        return jsonify(error='Download failed: ' + str(e)[:180]), 422
     title = re.sub(r'[\\/*?:"<>|]', "", d.get("title") or "video")[:80].strip() or "video"
     ext = os.path.splitext(path)[1]
     resp = send_file(path, as_attachment=True, download_name=title + ext)
