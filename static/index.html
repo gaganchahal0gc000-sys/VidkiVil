@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VidkiVil - All-in-One Video Downloader</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:#0b0b14;color:#eee;min-height:100vh;display:flex;justify-content:center;padding:24px 16px}
+.w{width:100%;max-width:560px}
+h1{text-align:center;margin:8px 0 4px;font-size:28px;background:linear-gradient(90deg,#8b5cf6,#ec4899);-webkit-background-clip:text;color:transparent}
+.sub{text-align:center;color:#9a9ab0;font-size:14px;margin-bottom:22px}
+.box{display:flex;gap:8px;flex-wrap:wrap}
+input{flex:1 1 100%;padding:14px;border-radius:12px;border:1px solid #2a2a40;background:#14141f;color:#fff;font-size:15px}
+button{padding:13px 18px;border:0;border-radius:12px;font-weight:600;font-size:15px;cursor:pointer;color:#fff;background:linear-gradient(90deg,#8b5cf6,#ec4899)}
+button.s{background:#22223a;flex:0 0 auto}
+button.g{flex:1}
+button:disabled{opacity:.5}
+.card{margin-top:20px;background:#14141f;border:1px solid #2a2a40;border-radius:16px;overflow:hidden}
+.card img{width:100%;display:block;max-height:260px;object-fit:cover}
+.in{padding:16px}
+.t{font-weight:600;margin-bottom:4px}
+.m{color:#9a9ab0;font-size:13px;margin-bottom:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.row button{flex:1 1 45%}
+#st{text-align:center;margin-top:16px;font-size:14px;color:#c4b5fd;min-height:20px}
+.err{color:#f87171!important}
+.f{text-align:center;color:#666;font-size:12px;margin-top:30px}
+</style></head>
+<body><div class="w">
+<h1>VidkiVil</h1>
+<div class="sub">Paste a link from Instagram, Facebook, YouTube, TikTok, X or Reddit</div>
+<div class="box">
+<input id="u" placeholder="Paste video link here..." autocomplete="off">
+<button class="s" onclick="pasteIt()">Paste</button>
+<button class="g" id="go" onclick="getInfo()">Find Media</button>
+</div>
+<div id="st"></div>
+<div id="res"></div>
+<div class="f">For personal use. Respect creators' rights and each platform's terms.</div>
+</div>
+<script>
+var cur = "";
+function $(id){ return document.getElementById(id); }
+function st(t, e){ $("st").textContent = t; $("st").className = e ? "err" : ""; }
+function dur(s){ s = Math.round(s); var m = Math.floor(s/60); return m + ":" + String(s%60).padStart(2,"0"); }
+
+async function pasteIt(){
+  try { $("u").value = await navigator.clipboard.readText(); getInfo(); }
+  catch(e){ st("Long-press the box and paste manually.", 1); }
+}
+
+async function getInfo(){
+  cur = $("u").value.trim();
+  if(!cur){ st("Paste a link first.", 1); return; }
+  $("res").innerHTML = ""; st("Searching media..."); $("go").disabled = true;
+  try {
+    var r = await fetch("/api/info", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({url:cur})});
+    var d = await r.json();
+    if(!r.ok) throw new Error(d.error);
+    st("");
+    var b = "";
+    if(d.has_video){
+      b += '<button onclick="dl(\'best\')">Best MP4 (HD)</button>';
+      d.qualities.forEach(function(q){ b += '<button onclick="dl(\'' + q + '\')">MP4 ' + q + 'p</button>'; });
+    }
+    b += '<button onclick="dl(\'mp3\')">MP3 Audio</button>';
+    var img = d.thumbnail ? '<img src="' + d.thumbnail + '" referrerpolicy="no-referrer">' : "";
+    $("res").innerHTML = '<div class="card">' + img + '<div class="in"><div class="t"></div><div class="m"></div><div class="row">' + b + '</div></div></div>';
+    document.querySelector(".t").textContent = d.title;
+    document.querySelector(".m").textContent = [d.uploader, d.duration ? dur(d.duration) : ""].filter(Boolean).join(" - ");
+  } catch(e){ st(e.message || "Something went wrong.", 1); }
+  $("go").disabled = false;
+}
+
+async function dl(q){
+  var all = document.querySelectorAll(".row button");
+  all.forEach(function(x){ x.disabled = true; });
+  st("Preparing your file... can take up to a minute");
+  try {
+    var r = await fetch("/api/download?q=" + q + "&url=" + encodeURIComponent(cur));
+    if(!r.ok){ var d = await r.json(); throw new Error(d.error); }
+    var cd = r.headers.get("Content-Disposition") || "";
+    var m = cd.match(/filename\*=utf-8''([^;]+)/i);
+    var n = m ? decodeURIComponent(m[1]) : "video";
+    var blob = await r.blob();
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = n;
+    document.body.appendChild(a); a.click(); a.remove();
+    st("Done! Check your downloads.");
+  } catch(e){ st(e.message, 1); }
+  all.forEach(function(x){ x.disabled = false; });
+}
+$("u").addEventListener("keydown", function(e){ if(e.key === "Enter") getInfo(); });
+</script></body></html>
